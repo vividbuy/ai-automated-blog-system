@@ -13,7 +13,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Fetch active Google Trends and filter out already written topics
+    // 1. Fetch active Google Trends safely
     let keyword = TOPICS[Math.floor(Math.random() * TOPICS.length)];
     try {
       const rss = await fetch('https://trends.google.com/trending/rss?geo=US', { next: { revalidate: 0 } });
@@ -22,7 +22,6 @@ export async function GET(req: Request) {
         const rawTrends = matches.slice(1).map((match) => match[1].trim());
 
         if (rawTrends.length > 0) {
-          // Fetch last 50 slugs from Supabase to prevent same-day duplicates
           const { data: recentPosts } = await supabaseAdmin
             .from('posts')
             .select('slug')
@@ -31,13 +30,11 @@ export async function GET(req: Request) {
           
           const existingSlugs = new Set((recentPosts || []).map((p) => p.slug));
 
-          // Filter out any trends whose slug already exists in recent history
           const unwrittenTrends = rawTrends.filter((trend) => {
             const slug = trend.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
             return !existingSlugs.has(slug);
           });
 
-          // Select from unwritten topics, fallback to raw list only if everything is written
           const finalTrends = unwrittenTrends.length > 0 ? unwrittenTrends : rawTrends;
           keyword = finalTrends[Math.floor(Math.random() * finalTrends.length)];
         }
@@ -75,19 +72,29 @@ export async function GET(req: Request) {
     const { data: dupSlug } = await supabaseAdmin.from('posts').select('id').eq('slug', blogData.slug).single();
     if (dupSlug) blogData.slug = blogData.slug + '-' + Math.floor(Math.random() * 1000);
 
-    // 4. Generate Anime Cover via FREE API & Save to Cloudflare R2
-    let coverUrl = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1024&auto=format&fit=crop';
+    // 4. Generate Anime Cover & Save to Cloudflare R2 (Outputs exact S3/R2 errors inside JSON response)
+    let coverUrl = '';
+    const imgUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(blogData.imagePrompt + ', anime style, vibrant masterpiece, high res') + '?width=1024&height=1024&nologo=true&seed=' + seed;
+
     try {
-      // Switched to FREE Legacy Engine by removing "&model=flux" to bypass 402 Payment Required errors
-      const imgUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(blogData.imagePrompt + ', anime style, vibrant masterpiece, high res') + '?width=1024&height=1024&nologo=true&seed=' + seed;
       const imgRes = await fetch(imgUrl);
       
       if (imgRes.ok) {
         const filename = 'blog-covers/' + blogData.slug + '-' + seed + '.webp';
-        await r2Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: filename, Body: Buffer.from(await imgRes.arrayBuffer()), ContentType: 'image/webp' }));
+        await r2Client.send(new PutObjectCommand({ 
+          Bucket: process.env.R2_BUCKET_NAME, 
+          Key: filename, 
+          Body: Buffer.from(await imgRes.arrayBuffer()), 
+          ContentType: 'image/webp' 
+        }));
         coverUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL + '/' + filename;
+      } else {
+        coverUrl = 'ERROR: Pollinations Image failed with status code ' + imgRes.status;
       }
-    } catch { console.warn('Using fallback image'); }
+    } catch (imageError: any) { 
+      // Output the exact Cloudflare R2 / AWS S3 client error message directly to the cover_image string [1.1.1]
+      coverUrl = 'ERROR: R2 Upload Failed - ' + (imageError.message || String(imageError));
+    }
 
     // 5. Find or Create Category
     let catId: string;
@@ -129,7 +136,6 @@ export async function GET(req: Request) {
   }
 }
 
-// Resilient fallback payload generator matching the schema to guarantee 100% system availability
 function generateFallbackPayload(keyword: string) {
   const safeSlug = keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'trend-topic';
   return {
