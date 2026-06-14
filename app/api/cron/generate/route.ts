@@ -75,12 +75,14 @@ export async function GET(req: Request) {
     const { data: dupSlug } = await supabaseAdmin.from('posts').select('id').eq('slug', blogData.slug).single();
     if (dupSlug) blogData.slug = blogData.slug + '-' + Math.floor(Math.random() * 1000);
 
-    // 4. Generate Anime Cover via VIVIDBUY Paid API Key & Save to Cloudflare R2
+    // 4. Generate Anime Cover via FREE API & Save to Cloudflare R2
     let coverUrl = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1024&auto=format&fit=crop';
     try {
-      const imgUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(blogData.imagePrompt + ', anime style, vibrant masterpiece, high res') + '?width=1024&height=1024&nologo=true&seed=' + seed + '&model=flux';
-      const imgRes = await fetch(imgUrl, process.env.POLLINATIONS_API_KEY ? { headers: { 'Authorization': 'Bearer ' + process.env.POLLINATIONS_API_KEY } } : {});
-      if (imgRes.ok && imgRes.status !== 402) {
+      // Switched to FREE Legacy Engine by removing "&model=flux" to bypass 402 Payment Required errors
+      const imgUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(blogData.imagePrompt + ', anime style, vibrant masterpiece, high res') + '?width=1024&height=1024&nologo=true&seed=' + seed;
+      const imgRes = await fetch(imgUrl);
+      
+      if (imgRes.ok) {
         const filename = 'blog-covers/' + blogData.slug + '-' + seed + '.webp';
         await r2Client.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_NAME, Key: filename, Body: Buffer.from(await imgRes.arrayBuffer()), ContentType: 'image/webp' }));
         coverUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL + '/' + filename;
@@ -127,6 +129,7 @@ export async function GET(req: Request) {
   }
 }
 
+// Resilient fallback payload generator matching the schema to guarantee 100% system availability
 function generateFallbackPayload(keyword: string) {
   const safeSlug = keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'trend-topic';
   return {
