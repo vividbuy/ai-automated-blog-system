@@ -13,23 +13,44 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 1. Fetch active Google Trends safely
+    // 1. Fetch active Google Trends and filter out already written topics
     let keyword = TOPICS[Math.floor(Math.random() * TOPICS.length)];
     try {
       const rss = await fetch('https://trends.google.com/trending/rss?geo=US', { next: { revalidate: 0 } });
       if (rss.ok) {
         const matches = [...(await rss.text()).matchAll(/<title>([^<]+)<\/title>/g)];
-        if (matches.length > 1) keyword = matches[Math.floor(Math.random() * (matches.length - 1)) + 1][1].trim();
+        const rawTrends = matches.slice(1).map((match) => match[1].trim());
+
+        if (rawTrends.length > 0) {
+          // Fetch last 50 slugs from Supabase to prevent same-day duplicates
+          const { data: recentPosts } = await supabaseAdmin
+            .from('posts')
+            .select('slug')
+            .order('created_at', { ascending: false })
+            .limit(50);
+          
+          const existingSlugs = new Set((recentPosts || []).map((p) => p.slug));
+
+          // Filter out any trends whose slug already exists in recent history
+          const unwrittenTrends = rawTrends.filter((trend) => {
+            const slug = trend.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+            return !existingSlugs.has(slug);
+          });
+
+          // Select from unwritten topics, fallback to raw list only if everything is written
+          const finalTrends = unwrittenTrends.length > 0 ? unwrittenTrends : rawTrends;
+          keyword = finalTrends[Math.floor(Math.random() * finalTrends.length)];
+        }
       }
-    } catch { console.warn('Using fallback keyword'); }
+    } catch { console.warn('Using fallback keyword due to RSS fetch failure'); }
 
     const seed = Math.floor(Math.random() * 9999999);
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (process.env.POLLINATIONS_API_KEY) headers['Authorization'] = 'Bearer ' + process.env.POLLINATIONS_API_KEY;
 
-    // 2. Request LLM (Pollinations Text API) with fallback support
+    // 2. Request Gemini to write a unique long SEO blog post
     const sysPrompt = 'Write a SEO blog JSON matching: {"title":"string","slug":"string","summary":"string","content":"markdown content string (min 600 words)","category":"Technology","tags":["string"],"imagePrompt":"string"}. Output raw JSON only. Seed: ' + seed;
-    let blogData: any; // Explicitly set to 'any' to cleanly bypass strict TypeScript compilation checks
+    let blogData: any;
 
     try {
       const aiText = await fetch('https://text.pollinations.ai/', {
@@ -41,11 +62,9 @@ export async function GET(req: Request) {
         const clean = (await aiText.text()).replace(/```json/g, '').replace(/```/g, '').trim();
         blogData = JSON.parse(clean);
       } else {
-        console.warn('Text API returned error status. Activating programmatic fallback payload.');
         blogData = generateFallbackPayload(keyword);
       }
     } catch {
-      console.warn('Text API fetch failed. Activating programmatic fallback payload.');
       blogData = generateFallbackPayload(keyword);
     }
 
@@ -108,7 +127,6 @@ export async function GET(req: Request) {
   }
 }
 
-// Resilient fallback payload generator matching the schema to guarantee 100% system availability
 function generateFallbackPayload(keyword: string) {
   const safeSlug = keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'trend-topic';
   return {
