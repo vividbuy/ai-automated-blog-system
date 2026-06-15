@@ -34,12 +34,12 @@ export default async function Page({ params }: { params: Promise<{ slug: string 
       <h1 style={{ fontSize: '32px', marginBottom: '10px', lineHeight: '1.3', fontWeight: 'bold' }}>{post.title}</h1>
       <p style={{ color: '#666', fontStyle: 'italic', marginBottom: '20px', fontSize: '15px', lineHeight: '1.4' }}>{post.summary}</p>
       
-      {/* Fixed-height image banner with object-fit: cover for perfect uniform look */}
+      {/* Restored to auto-height to show the entire, uncut beautiful illustration without any cropping */}
       {post.cover_image_url && (
         <img 
           src={post.cover_image_url} 
           alt="" 
-          style={{ width: '100%', height: '300px', objectFit: 'cover', borderRadius: '8px', marginBottom: '20px' }} 
+          style={{ width: '100%', height: 'auto', borderRadius: '8px', marginBottom: '20px' }} 
         />
       )}
       
