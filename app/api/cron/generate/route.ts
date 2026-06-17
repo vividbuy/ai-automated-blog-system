@@ -1,4 +1,4 @@
-// app/api/cron/generate/route.ts
+﻿// app/api/cron/generate/route.ts
 import { NextResponse } from 'next/server';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { r2Client } from '../../../../lib/r2';
@@ -12,8 +12,6 @@ export async function GET(req: Request) {
     if (searchParams.get('secret') !== process.env.SUPABASE_SERVICE_ROLE_KEY || !supabaseAdmin) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const pollinationsApiKey = process.env.POLLINATIONS_API_KEY || '';
 
     // 1. Fetch active Google Trends and filter out already written topics
     let keyword = TOPICS[Math.floor(Math.random() * TOPICS.length)];
@@ -47,52 +45,53 @@ export async function GET(req: Request) {
     } catch { console.warn('Using fallback keyword due to RSS fetch failure'); }
 
     const seed = Math.floor(Math.random() * 9999999);
-    const apiHeaders: Record<string, string> = { 
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer ' + pollinationsApiKey
-    };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (process.env.POLLINATIONS_API_KEY) headers['Authorization'] = 'Bearer ' + process.env.POLLINATIONS_API_KEY;
 
-    // 2. Request GPT (via gen.pollinations.ai completions endpoint exactly like VIVIDBUY)
-    const sysPrompt = 'Write a SEO blog JSON matching: {"title":"string","slug":"string","summary":"string","content":"markdown content string (min 600 words)","category":"Technology","tags":["string"],"imagePrompt":"string"}. Output raw JSON only. Seed: ' + seed;
+    // 2. Request Gemini to write a unique long SEO blog post strictly in English
+    const sysPrompt = 'Write a SEO blog JSON matching: {"title":"string","slug":"string","summary":"string","content":"markdown content string (minimum 600 words)","category":"Technology","tags":["string"],"imagePrompt":"string"}. ' +
+      'STRICT MULTILINGUAL TRANSLATION RULE: You MUST write the title, summary, content, and tags strictly in 100% fluent English. Even if the input topic/keyword is in Arabic, Spanish, Japanese, or any other language, translate it and write the entire response strictly in English. Output raw JSON only. Seed: ' + seed;
+
+    const userPrompt = 'Generate a unique, masterpiece article about: "' + keyword + '". Verification Seed: ' + seed;
     let blogData: any;
 
-    const aiText = await fetch('https://gen.pollinations.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: apiHeaders,
-      body: JSON.stringify({
-        messages: [
-          { role: 'system', content: sysPrompt },
-          { role: 'user', content: 'Topic: ' + keyword }
-        ],
-        model: 'openai'
-      })
-    });
-
-    if (!aiText.ok) throw new Error('AI Text Generator failed: ' + aiText.statusText);
-    const aiJson = await aiText.json();
-    const rawAiText = aiJson.choices[0].message.content;
-    const clean = rawAiText.replace(/```json/g, '').replace(/```/g, '').trim();
-    blogData = JSON.parse(clean);
+    try {
+      const aiText = await fetch('https://text.pollinations.ai/', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          messages: [
+            { role: 'system', content: sysPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          model: 'gemini',
+          jsonMode: true
+        })
+      });
+      if (aiText.ok) {
+        const clean = (await aiText.text()).replace(/```json/g, '').replace(/```/g, '').trim();
+        blogData = JSON.parse(clean);
+      } else {
+        console.warn('Text API returned error status. Activating programmatic fallback payload.');
+        blogData = generateFallbackPayload(keyword);
+      }
+    } catch {
+      console.warn('Text API fetch failed. Activating programmatic fallback payload.');
+      blogData = generateFallbackPayload(keyword);
+    }
 
     // 3. Duplicate Guard: Prevent duplicate posts
     const { data: dup } = await supabaseAdmin.from('posts').select('id').eq('title', blogData.title).single();
     if (dup) return NextResponse.json({ success: true, message: 'Duplicate post skipped' });
 
     const { data: dupSlug } = await supabaseAdmin.from('posts').select('id').eq('slug', blogData.slug).single();
-    if (dupSlug) blogData.slug = blogData.slug + '-' + Math.floor(Math.random() * 1000);
+    if (dupSlug) blogData.slug = dupSlug.slug + '-' + Math.floor(Math.random() * 1000);
 
-    // 4. Generate Anime Cover via Flux Engine (Exactly like VIVIDBUY format) & Save to Cloudflare R2
+    // 4. Generate Anime Cover via FREE API & Save to Cloudflare R2
     let coverUrl = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1024&auto=format&fit=crop';
-    
     try {
-      const stylizedPrompt = blogData.imagePrompt + ', anime style, vibrant masterpiece, high res';
-      const encodedPrompt = encodeURIComponent(stylizedPrompt);
-      const imgUrl = 'https://gen.pollinations.ai/image/' + encodedPrompt + '?model=flux&width=1024&height=1024&nologo=true&key=' + pollinationsApiKey + '&seed=' + seed;
-
-      // Double-verification header authentication as designed in VIVIDBUY
-      const imgRes = await fetch(imgUrl, {
-        headers: { 'Authorization': 'Bearer ' + pollinationsApiKey }
-      });
+      const imgUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(blogData.imagePrompt + ', anime style, vibrant masterpiece, high res') + '?width=1024&height=1024&nologo=true&seed=' + seed;
+      const imgRes = await fetch(imgUrl);
       
       if (imgRes.ok) {
         const filename = 'blog-covers/' + blogData.slug + '-' + seed + '.webp';
@@ -103,12 +102,8 @@ export async function GET(req: Request) {
           ContentType: 'image/webp' 
         }));
         coverUrl = process.env.NEXT_PUBLIC_R2_PUBLIC_URL + '/' + filename;
-      } else {
-        console.warn('Image generation status is not ok:', imgRes.status);
       }
-    } catch (imageError) {
-      console.warn('Image generation or R2 upload failed. Activating fallback abstract illustration.', imageError);
-    }
+    } catch { console.warn('Using fallback image'); }
 
     // 5. Find or Create Category
     let catId: string;
@@ -117,9 +112,9 @@ export async function GET(req: Request) {
     if (existingCat) {
       catId = existingCat.id;
     } else {
-      const { data: newCat, error: catError } = await supabaseAdmin.from('categories').insert({ name: blogData.category, slug: catSlug }).select('id').single();
+      const { data: newCategory, error: catError } = await supabaseAdmin.from('categories').insert({ name: blogData.category, slug: catSlug }).select('id').single();
       if (catError) throw catError;
-      catId = newCat.id;
+      catId = newCategory.id;
     }
 
     // 6. Save real post metadata to Supabase
@@ -150,7 +145,7 @@ export async function GET(req: Request) {
   }
 }
 
-// Programmatic fallback payload generator matching the schema to guarantee 100% system availability
+// Programmatic fallback article generator matching the schema to guarantee 100% system availability
 function generateFallbackPayload(keyword: string) {
   const safeSlug = keyword.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'trend-topic';
   return {
