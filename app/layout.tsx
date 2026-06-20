@@ -1,4 +1,5 @@
 // app/layout.tsx
+import React from 'react';
 import './globals.css';
 
 export default function RootLayout({
