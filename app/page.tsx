@@ -70,7 +70,7 @@ export default async function Page({ searchParams }: PageProps) {
                   />
                 )}
                 <div style={{ flex: 1 }}>
-                  <h2 style={{ fontSize: '18px', margin: '0 0 5px', lineHeight: '1.4', fontWeight: 'bold' }}>
+                  <h2 style={{ fontSize: '17px', margin: '0 0 5px', lineHeight: '1.4', fontWeight: 'bold' }}>
                     <Link href={'/posts/' + post.slug} style={{ color: '#0070f3', textDecoration: 'none' }}>
                       {post.title}
                     </Link>
@@ -133,12 +133,14 @@ export default async function Page({ searchParams }: PageProps) {
 
       </div>
 
-      {/* Styled Footer containing Privacy Policy, Contact links, and Dynamic Copyright */}
+      {/* Styled Footer containing Privacy Policy, Contact links, About Bob, and Copyright */}
       <footer style={{ borderTop: '1px solid #eee', paddingTop: '20px', textAlign: 'center', marginTop: '40px' }}>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '10px' }}>
           <Link href="/privacy" style={{ color: '#666', textDecoration: 'none', fontSize: '14px' }}>Privacy Policy</Link>
           <span style={{ color: '#ccc', fontSize: '14px' }}>|</span>
           <Link href="/contact" style={{ color: '#666', textDecoration: 'none', fontSize: '14px' }}>Contact Us</Link>
+          <span style={{ color: '#ccc', fontSize: '14px' }}>|</span>
+          <Link href="/about" style={{ color: '#0070f3', textDecoration: 'none', fontSize: '14px', fontWeight: 'bold' }}>About Us</Link>
         </div>
         <p style={{ color: '#999', fontSize: '12px', margin: 0 }}>
           © {new Date().getFullYear()} Bob's Daily Insights. All rights reserved.
