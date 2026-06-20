@@ -20,21 +20,21 @@ export default async function Page() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '40px' }}>
         {posts && posts.map((post) => (
-          <div key={post.id} style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+          <div key={post.id} style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
             {post.cover_image_url && (
               <img 
                 src={post.cover_image_url} 
                 alt="" 
-                style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: '4px' }} 
+                style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px' }} 
               />
             )}
-            <div>
-              <h2 style={{ fontSize: '18px', margin: '0 0 5px' }}>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ fontSize: '18px', margin: '0 0 5px', lineHeight: '1.4' }}>
                 <Link href={'/posts/' + post.slug} style={{ color: '#0070f3', textDecoration: 'none' }}>
                   {post.title}
                 </Link>
               </h2>
-              <p style={{ color: '#666', fontSize: '14px', margin: 0 }}>{post.summary}</p>
+              <p style={{ color: '#666', fontSize: '14px', margin: 0, lineHeight: '1.4' }}>{post.summary}</p>
             </div>
           </div>
         ))}
