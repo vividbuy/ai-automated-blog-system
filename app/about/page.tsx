@@ -23,7 +23,12 @@ export default function AboutPage() {
       
       <p>Welcome to <strong>Bob's Daily Insights</strong>. I am <strong>Bob Slider</strong>, a veteran investigative journalist and trend analyst with over 15 years of experience covering global markets, technology shifts, and digital culture.</p>
       <p>In today's fast-paced world, raw search data and automated trending topics can feel overwhelming and disconnected from reality. My mission here is simple: to cut through the noise, analyze the daily global search streams, and craft detailed, human-centric columns that explain exactly who, what, and why these topics are shaping our future.</p>
-      <p>Thank you for stopping by, and I hope my daily insights bring clarity and analytical depth to your day.</p>
+      <p style={{ marginBottom: '40px' }}>Thank you for stopping by, and I hope my daily insights bring clarity and analytical depth to your day.</p>
+      
+      {/* Back to Home Button */}
+      <div style={{ borderTop: '1px solid #eee', paddingTop: '20px', textAlign: 'center' }}>
+        <Link href="/" style={{ color: '#0070f3', textDecoration: 'none', fontSize: '18px', fontWeight: 'bold' }}>← Back to Home</Link>
+      </div>
     </div>
   );
 }
