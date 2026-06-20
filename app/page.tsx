@@ -57,46 +57,32 @@ export default async function Page({ searchParams }: PageProps) {
         
         {/* Main Column (Left side) - Takes 60% of desktop space */}
         <div style={{ flex: '1 1 500px', minWidth: '300px' }}>
+          
+          {/* Articles list (Without in-feed ads to ensure smooth reading) */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {posts && posts.map((post, idx) => (
-              <React.Fragment key={post.id}>
-                <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
-                  {post.cover_image_url && (
-                    <img 
-                      src={post.cover_image_url} 
-                      alt="" 
-                      style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} 
-                    />
-                  )}
-                  <div style={{ flex: 1 }}>
-                    <h2 style={{ fontSize: '17px', margin: '0 0 5px', lineHeight: '1.4', fontWeight: 'bold' }}>
-                      <Link href={'/posts/' + post.slug} style={{ color: '#0070f3', textDecoration: 'none' }}>
-                        {post.title}
-                      </Link>
-                    </h2>
-                    <p style={{ color: '#666', fontSize: '13px', margin: 0, lineHeight: '1.4' }}>{post.summary}</p>
-                  </div>
-                </div>
-                
-                {/* Dynamic In-Feed Ad Slot after the 2nd article */}
-                {idx === 1 && (
-                  adHomepage.includes('<!--') ? (
-                    <div style={{ margin: '15px 0', padding: '15px', backgroundColor: '#fafafa', border: '1px dashed #ddd', borderRadius: '6px', textAlign: 'center' }}>
-                      <span style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '5px' }}>In-Feed Advertisement</span>
-                      <div style={{ minHeight: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: '13px', fontStyle: 'italic' }}>
-                        Sponsored Content Space
-                      </div>
-                    </div>
-                  ) : (
-                    <div style={{ margin: '15px 0', textAlign: 'center' }} dangerouslySetInnerHTML={{ __html: adHomepage }} />
-                  )
+            {posts && posts.map((post) => (
+              <div key={post.id} style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+                {post.cover_image_url && (
+                  <img 
+                    src={post.cover_image_url} 
+                    alt="" 
+                    style={{ width: '100px', height: '100px', objectFit: 'cover', borderRadius: '8px', flexShrink: 0 }} 
+                  />
                 )}
-              </React.Fragment>
+                <div style={{ flex: 1 }}>
+                  <h2 style={{ fontSize: '17px', margin: '0 0 5px', lineHeight: '1.4', fontWeight: 'bold' }}>
+                    <Link href={'/posts/' + post.slug} style={{ color: '#0070f3', textDecoration: 'none' }}>
+                      {post.title}
+                    </Link>
+                  </h2>
+                  <p style={{ color: '#666', fontSize: '13px', margin: 0, lineHeight: '1.4' }}>{post.summary}</p>
+                </div>
+              </div>
             ))}
           </div>
 
           {/* Styled Pagination Navigation */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '40px', borderTop: '1px solid #eee', paddingTop: '20px', marginBottom: '40px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '40px', borderTop: '1px solid #eee', paddingTop: '20px', marginBottom: '30px' }}>
             {hasPrev ? (
               <Link href={'/?page=' + (currentPage - 1)} style={{ color: '#0070f3', textDecoration: 'none', fontWeight: 'bold', fontSize: '14px' }}>← Previous</Link>
             ) : <div />}
@@ -105,15 +91,27 @@ export default async function Page({ searchParams }: PageProps) {
               <Link href={'/?page=' + (currentPage + 1)} style={{ color: '#0070f3', textDecoration: 'none', fontWeight: 'bold', fontSize: '14px' }}>Next →</Link>
             ) : <div />}
           </div>
+
+          {/* Dynamic Article List Bottom Ad Slot - Positioned safely at the very end of the list */}
+          {adHomepage.includes('<!--') ? (
+            <div style={{ margin: '30px 0', padding: '15px', backgroundColor: '#fafafa', border: '1px dashed #ddd', borderRadius: '6px', textAlign: 'center' }}>
+              <span style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '10px' }}>List Bottom Advertisement</span>
+              <div style={{ minHeight: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#bbb', fontSize: '13px', fontStyle: 'italic' }}>
+                Sponsored Content Space
+              </div>
+            </div>
+          ) : (
+            <div style={{ margin: '30px 0', textAlign: 'center' }} dangerouslySetInnerHTML={{ __html: adHomepage }} />
+          )}
         </div>
 
-        {/* Sidebar Column (Right side) - Takes 30% space, becomes sticky */}
+        {/* Sidebar Column (Right side) */}
         <aside style={{ flex: '1 1 250px', maxWidth: '320px', minWidth: '250px' }}>
           
           {/* Author Card */}
           <div style={{ backgroundColor: '#fafafa', borderRadius: '8px', padding: '20px', border: '1px solid #f0f0f0', marginBottom: '25px' }}>
             <h3 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0 0 10px', borderBottom: '2px solid #eee', paddingBottom: '6px' }}>About Journalist Bob</h3>
-            <p style={{ fontSize: '13px', color: '#444', lineHeight: '1.5', margin: 0 }}>
+            <p style={{ color: '#555', margin: 0, fontSize: '14px', lineHeight: '1.4' }}>
               Bob is a veteran global trend analyst and independent tech journalist. He curates daily breaking search patterns and turns complex data streams into comprehensive, readable human stories.
             </p>
           </div>
